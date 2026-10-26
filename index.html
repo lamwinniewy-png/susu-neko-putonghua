@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="zh-Hant-HK">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Susu 和 Neko 陪你溫習普通話</title>
+<meta name="description" content="二上《活學普通話》第一至三課拼音溫習網站：聲母、韻母、聲調、課文朗讀和小遊戲。">
+<link rel="icon" href="img/doll-wave.webp">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Andika:wght@400;700&family=Fredoka:wght@500;600;700&family=LXGW+WenKai+TC:wght@400;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="bg" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
+
+<header class="topbar">
+  <button class="brand" data-go="home" aria-label="返回首頁">
+    <img src="img/doll-wave.webp" alt="" width="40" height="60">
+    <span>Susu &amp; Neko 普通話樂園</span>
+  </button>
+  <nav class="topnav">
+    <button data-go="learn">學習區</button>
+    <button data-go="games">遊戲樂園</button>
+  </nav>
+  <div class="tools">
+    <button id="slowBtn" class="chip" aria-pressed="false" title="慢速朗讀">慢速</button>
+    <div class="stars" title="已得星星"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.5l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.4 6.1 20.5l1.2-6.5L2.5 9.4l6.6-.9z"/></svg><b id="starCount">0</b></div>
+  </div>
+</header>
+
+<main id="app"></main>
+
+<!-- Doll companion (floating) -->
+<aside id="buddy" class="buddy" aria-live="polite">
+  <div class="bubble" id="bubble"></div>
+  <button class="buddy-doll" id="buddyDoll" aria-label="Susu 再說一次"><img id="buddyImg" src="img/doll-wave.webp" alt="Susu 娃娃"></button>
+</aside>
+
+<div id="modal" class="modal" hidden>
+  <div class="modal-card">
+    <img id="modalImg" src="img/baby-clap.webp" alt="">
+    <h2 id="modalTitle"></h2>
+    <p id="modalText"></p>
+    <div class="modal-actions" id="modalActions"></div>
+  </div>
+</div>
+
+<div id="confetti" aria-hidden="true"></div>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
