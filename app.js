@@ -186,6 +186,16 @@ routes.home = () => {
     </button>`; }).join('')}
   </div>
 
+  <div class="section-title"><h2>習作溫習</h2><p>老師派回的普通話習作，可能會考</p></div>
+  <div class="grid g-l">
+    ${[1,2,3].map(n => { const u = W.WB[n]; return `
+    <button class="card lesson-card wb-card" style="--c:${LCOL[n][0]}" data-go="wb" data-arg="${n}">
+      <div class="num">習${n}</div>
+      <h3>${u.title}<small style="font-size:.9rem;color:var(--ink-2)">（${u.sub}）</small></h3>
+      <p class="d">${['聽對話答題、拼音配圖畫三關','聽對話答題、i 行韻母月餅、走雲朵去月宮','聽對話答題、u 行韻母聖誕樹、圈韻母'][n-1]}</p>
+    </button>`; }).join('')}
+  </div>
+
   <div class="section-title"><h2>我的星星貼紙</h2><p>每完成一個遊戲，就得到一顆星星</p></div>
   <div class="stickers" id="stk">
     ${GAMES.map(g => `<div class="sticker ${S.done[g.id] ? 'got' : ''}" title="${g.name}">${starSvg}</div>`).join('')}
@@ -291,7 +301,7 @@ routes.games = () => {
       <div><h3>學累了嗎？Neko 陪你休息一下</h3><p style="color:var(--ink-2);margin-top:4px">玩了一會兒，記得休息眼睛，喝口水。</p></div>
       <button class="btn lav small" style="margin-left:auto" id="restBtn">休息一下</button>
     </div>`));
-  $('#restBtn').onclick = () => { modal({ img:'sleep', title:'休息一下', text:DOLL_TC.rest, actions:[['好的','lav']] }); say('doll_rest', D.DOLL.rest); };
+  $('#restBtn').onclick = () => { modal({ img:'sleep', title:'休息一下', text:DOLL_TC.rest, actions:[['好的','lav']] }); nekoSay('rest'); };
   dollSay('games', null, 'cheer');
 };
 
@@ -333,7 +343,7 @@ function runGame(gid, rounds, renderRound){
     S.done[gid] = true; S.stars += 1; S.plays += 1; save();
     confetti();
     $('#prog').style.width = '100%';
-    say('doll_finish', D.DOLL.finish);
+    say('doll_finish', D.DOLL.finish).then(() => document.querySelector('#modal:not([hidden])') && nekoSay('finish'));
     modal({ img:'clap', title:'完成了！', text:`你答對了 ${right} / ${rounds.length} 題，得到一顆星星！${S.plays % 3 === 0 ? '玩了幾個遊戲，休息一下眼睛吧。' : ''}`,
       actions:[['再玩一次','mint',()=>routes.game(gid)],['返回遊戲樂園','',()=>go('games')]] });
     setDoll('cheer');
@@ -492,11 +502,155 @@ const GAME_IMPL = {
 };
 routes.game = id => { (GAME_IMPL[id] || GAME_IMPL.listen)(); };
 
+/* ---------------- WORKBOOK (習作溫習) ---------------- */
+const W = window.WB_DATA;
+Object.assign(DOLL_TC, W.SUSU_TC); Object.assign(D.DOLL, W.SUSU);
+function nekoSay(key){
+  const b = $('#bubble'), buddy = $('#buddy');
+  b.textContent = W.NEKO_TC[key] || ''; b.classList.add('show'); setDoll('clap'); buddy.classList.add('talk','neko');
+  clearTimeout(bubbleT);
+  return say('neko_' + key, W.NEKO[key]).then(() => { buddy.classList.remove('talk'); bubbleT = setTimeout(() => { b.classList.remove('show'); buddy.classList.remove('neko'); setDoll('wave'); }, 2600); });
+}
+const cubeSvg = '<svg viewBox="0 0 60 60" class="cube" aria-hidden="true"><path d="M30 4 56 17 30 30 4 17z" fill="#ffd43b" stroke="#333" stroke-width="2"/><path d="M4 17 30 30v26L4 43z" fill="#ff6b5e" stroke="#333" stroke-width="2"/><path d="M56 17 30 30v26l26-13z" fill="#4ea8ff" stroke="#333" stroke-width="2"/><path d="M12.7 12.7 39 25.7M21.3 8.4 47.4 21.3M12.7 21.3 38.7 8.4M21.3 25.7 47.3 12.7M4 25.7l26 13M4 34.3l26 13M12.7 21.3v26M21.3 25.7v26M56 25.7l-26 13M56 34.3l-26 13M47.3 21.3v26M38.7 25.7v26" stroke="#333" stroke-width="1.6" fill="none"/></svg>';
+const picEm = e => e === 'CUBE' ? cubeSvg : e;
+const WB_DONE = {};
+function wbStar(key){ if (WB_DONE[key]) return; WB_DONE[key] = true; S.stars++; save(); confetti(); nekoSay('cheer'); }
+
+routes.wb = (tab='1') => {
+  app.innerHTML = '';
+  const n = +tab || 1; const u = W.WB[n]; const c = LCOL[n][0];
+  app.append(h(`<div class="tabs" role="tablist">${[1,2,3].map(k=>`<button class="tab ${k===n?'on':''}" data-go="wb" data-arg="${k}">習作 ${k}　${W.WB[k].title}</button>`).join('')}</div>
+  <section class="panel wb" style="--c:${c}">
+    <div class="panel-head"><img src="img/doll-teach.webp" alt=""><div><h2>習作 ${n}　${u.title}（${u.sub}）</h2><p>根據普通話習作溫習：聽前準備、仔細聽、練語音。考試時會聽錄音答題，所以先聽，再看文字。</p></div></div>
+    <h3 class="sub-h">聽前準備</h3>
+    <div class="words">${u.pre.map((w,i)=>`<button class="word" data-p="${i}"><div class="em" aria-hidden="true">${w[3]}</div><div class="py">${w[1]}</div><div class="zh">${w[0]}</div></button>`).join('')}</div>
+    <h3 class="sub-h">仔細聽</h3>
+    <div class="listen-bar">
+      <button class="btn small" id="playDlg" style="--c:${c};--cd:rgba(0,0,0,.25)">播放對話</button>
+      <button class="btn ghost small" id="showTxt" aria-pressed="false">顯示對話文字</button>
+      <span class="cast">${Object.keys(u.cast).map(k=>`<b>${k}</b>`).join(' 和 ')}的對話</span>
+    </div>
+    <div class="dialog wb-dialog hide-txt" id="dlg">${u.dialog.map((d,i)=>{ const si = Object.keys(u.cast).indexOf(d[0]); return `
+      <button class="line ${si%2?'alt':''}" data-d="${i}" style="--c:${['var(--coral)','var(--lav)','var(--mint)'][si]}"><span class="who">${d[0]}</span><span class="say"><div class="zh">${d[1]}</div><div class="zh mask">第 ${i+1} 句　點一點，再聽一次</div></span></button>`; }).join('')}</div>
+    <div class="qs" id="qs">${u.qs.map((q,qi)=>`<div class="q" data-q="${qi}"><p class="qt"><b>${qi+1}.</b> ${q.q}</p><div class="qopts ${q.o.some(o=>o[0])?'pic':''}">${q.o.map((o,oi)=>`<button class="qo" data-o="${oi}"><span class="lt">${'ABCD'[oi]}</span>${o[0]?`<span class="em">${o[0]}</span>`:''}<span>${o[1]}</span></button>`).join('')}</div></div>`).join('')}</div>
+    <div class="check-row"><button class="btn mint" id="chk">核對答案</button><span id="chkMsg"></span></div>
+    <p class="hint" id="note" hidden>${u.note}</p>
+    <h3 class="sub-h">練語音</h3>
+    <div id="practice"></div>
+  </section>`));
+  const p = $('.wb');
+  p.querySelectorAll('[data-p]').forEach(b => b.onclick = () => say(`wb${n}_p${b.dataset.p}`, u.pre[b.dataset.p][2], b));
+  p.querySelectorAll('[data-d]').forEach(b => b.onclick = () => say(`wb${n}_d${b.dataset.d}`, u.dialog[b.dataset.d][2], b));
+  $('#playDlg').onclick = async () => { for (const b of p.querySelectorAll('[data-d]')) { if (!document.body.contains(b)) return; await say(`wb${n}_d${b.dataset.d}`, u.dialog[b.dataset.d][2], b); await new Promise(r=>setTimeout(r,450)); } };
+  $('#showTxt').onclick = e => { const on = $('#dlg').classList.toggle('hide-txt'); e.currentTarget.textContent = on ? '顯示對話文字' : '隱藏對話文字'; e.currentTarget.setAttribute('aria-pressed', !on); };
+  p.querySelectorAll('.q').forEach(qe => { const q = u.qs[+qe.dataset.q]; const multi = q.a.length > 1;
+    qe.querySelectorAll('.qo').forEach(b => b.onclick = () => { qe.querySelectorAll('.qo').forEach(x=>x.classList.remove('ok','no')); if (!multi) qe.querySelectorAll('.qo').forEach(x=>x!==b && x.classList.remove('sel')); b.classList.toggle('sel'); }); });
+  $('#chk').onclick = () => {
+    let right = 0;
+    p.querySelectorAll('.q').forEach(qe => { const q = u.qs[+qe.dataset.q];
+      const sel = [...qe.querySelectorAll('.qo.sel')].map(b=>+b.dataset.o);
+      const ok = sel.length === q.a.length && q.a.every(a => sel.includes(a));
+      if (ok) right++;
+      qe.classList.toggle('right', ok); qe.classList.toggle('wrongq', !ok);
+      qe.querySelectorAll('.qo').forEach(b => { const o = +b.dataset.o; b.classList.toggle('ok', ok && q.a.includes(o)); b.classList.toggle('no', !ok && sel.includes(o) && !q.a.includes(o)); });
+    });
+    $('#chkMsg').textContent = `答對 ${right} / ${u.qs.length} 題` + (right === u.qs.length ? '，全對了！' : '，再聽一次對話，改一改吧。');
+    $('#note').hidden = false;
+    if (right === u.qs.length){ praise(); wbStar('q'+n); } else comfort();
+  };
+  ({1:practice1, 2:practice2, 3:practice3})[n]($('#practice'));
+  dollSay('wb', null, 'teach');
+};
+
+/* 習作 1：拼音配圖畫（三關） */
+function practice1(box){
+  box.append(h(`<div class="act"><h4>聽錄音，把拼音和相關的圖片配起來（三關）</h4>
+    <div class="pic-row" id="pyRow">${W.PIC_Q.map((pi,k)=>`<button class="pychip" data-k="${k}"><small>${k<1?'第一關':k<3?'第二關':'第三關'}</small>${W.PIC[pi][0]}</button>`).join('')}</div>
+    <p class="act-tip" id="picTip">先點一個拼音，聽一聽，再點正確的圖片。</p>
+    <div class="pic-grid" id="picGrid">${shuffle(W.PIC.map((x,i)=>i)).map(i=>`<button class="picc" data-i="${i}"><span class="em">${picEm(W.PIC[i][2])}</span><span class="lb">${W.PIC[i][3]}</span></button>`).join('')}</div></div>`));
+  let curK = null, done = 0;
+  const chips = box.querySelectorAll('.pychip');
+  chips.forEach(c => c.onclick = () => { if (c.classList.contains('done')) return; chips.forEach(x=>x.classList.remove('sel')); c.classList.add('sel'); curK = +c.dataset.k; say('wbpic_' + W.PIC_Q[curK], W.PIC[W.PIC_Q[curK]][1], c); });
+  box.querySelectorAll('.picc').forEach(b => b.onclick = () => {
+    const i = +b.dataset.i;
+    if (curK === null){ say('wbpic_' + i, W.PIC[i][1], b); $('#picTip').textContent = '先點上面的拼音，再選圖片哦。'; return; }
+    if (i === W.PIC_Q[curK]){ b.classList.add('ok','show'); const c = chips[curK]; c.classList.remove('sel'); c.classList.add('done'); c.innerHTML += ` <span class="em">${picEm(W.PIC[i][2])}</span>`; curK = null; done++; praise();
+      if (done === W.PIC_Q.length){ $('#picTip').textContent = '三關都過了！記住：mó fāng 是魔方哦。'; wbStar('pic'); } }
+    else { b.classList.add('no'); setTimeout(()=>b.classList.remove('no'),500); comfort(); }
+  });
+}
+
+/* 習作 2：i 行韻母月餅 + 走雲朵去月宮 */
+function practice2(box){
+  box.append(h(`<div class="act"><h4>一、聽錄音，把 i 行韻母填在月餅裏</h4>
+    <div class="cakes">${W.IFILL.map(f=>{ const blank = W.IFILL_BLANK.includes(f); return `<button class="cake ${blank?'blank':''}" data-f="${f}"><span>${blank?'?':f}</span></button>`; }).join('')}</div>
+    <div class="fill-opts" id="fillOpts" hidden><span>這個月餅是：</span>${shuffle(W.IFILL_BLANK.concat(['ie','in'])).map(f=>`<button class="opt" data-v="${f}">${f}</button>`).join('')}</div>
+    <p class="act-tip" id="cakeTip">點有 ? 的月餅，聽一聽，再選出韻母。</p></div>
+    <div class="act"><h4>二、聽錄音，按讀的順序走雲朵，去到真正的月宮</h4>
+    <div class="clouds" id="clouds"><svg class="paths" viewBox="0 0 100 100" preserveAspectRatio="none"><polyline id="cpath" points="" /></svg>
+      <div class="castle" style="left:4%;top:1%">🏯</div><div class="castle" style="right:4%;top:1%">🏯</div>
+      ${W.CLOUDS.map((c,i)=>`<button class="cloud" data-i="${i}" style="left:${[22,72,14,48,82,18,53,84,30,65][i]}%;top:${[10,10,32,32,32,54,54,54,76,76][i]}%"><span class="py">${c[0]}</span><span class="zh">${c[1]}</span></button>`).join('')}
+      <div class="startpt" style="left:50%;top:95%">開始</div></div>
+    <div class="check-row"><button class="btn sky small" id="nextCloud">聽下一朵雲</button><span id="cloudTip">按「聽下一朵雲」開始。</span></div></div>`));
+  // cakes
+  let curF = null; const opts = $('#fillOpts'); let filled = 0;
+  box.querySelectorAll('.cake').forEach(c => c.onclick = () => { const f = c.dataset.f; say('fin_' + f, f, c); if (c.classList.contains('blank')){ box.querySelectorAll('.cake').forEach(x=>x.classList.remove('sel')); c.classList.add('sel'); curF = c; opts.hidden = false; } });
+  opts.querySelectorAll('.opt').forEach(o => o.onclick = () => { if (!curF) return;
+    if (o.dataset.v === curF.dataset.f){ curF.classList.remove('blank','sel'); curF.classList.add('filled'); curF.querySelector('span').textContent = curF.dataset.f; curF = null; opts.hidden = true; filled++; praise();
+      if (filled === W.IFILL_BLANK.length){ $('#cakeTip').textContent = '月餅都填好了：ia、iao、ian、iang、iong。'; wbStar('cake'); } }
+    else { o.classList.add('no'); setTimeout(()=>o.classList.remove('no'),500); comfort(); } });
+  // clouds
+  let step = 0; const pts = [[50,95]]; const pos = i => { const el = box.querySelector(`.cloud[data-i="${i}"]`); return [parseFloat(el.style.left), parseFloat(el.style.top)]; };
+  const playStep = () => { if (step < W.CLOUD_PATH.length){ const i = W.CLOUD_PATH[step]; say('wbcl_' + i, W.CLOUDS[i][2]); $('#cloudTip').textContent = `第 ${step+1} 朵雲：聽一聽，點正確的雲朵。`; } };
+  $('#nextCloud').onclick = playStep;
+  box.querySelectorAll('.cloud').forEach(b => b.onclick = () => {
+    const i = +b.dataset.i;
+    if (step >= W.CLOUD_PATH.length || step === 0 && !$('#cloudTip').textContent.startsWith('第')){ say('wbcl_' + i, W.CLOUDS[i][2], b); return; }
+    if (i === W.CLOUD_PATH[step]){ b.classList.add('ok'); pts.push(pos(i)); $('#cpath').setAttribute('points', pts.map(p=>p.join(',')).join(' ')); step++;
+      if (step === W.CLOUD_PATH.length){ $('#cloudTip').textContent = '到達月宮了！順序是：謎、家、心、永、遊、面、想。'; box.querySelectorAll('.castle')[1].classList.add('win'); dollSay('wb_moon_done', null, 'cheer'); wbStar('cloud'); }
+      else { praise(); setTimeout(playStep, 1500); } }
+    else { b.classList.add('no'); setTimeout(()=>b.classList.remove('no'),500); comfort(); setTimeout(playStep, 1700); }
+  });
+}
+
+/* 習作 3：u 行韻母連線聖誕樹 + 圈韻母 */
+function practice3(box){
+  const P = { u0:[6,93], u1:[30,67], uo:[10,67], ua:[34,40], uai:[16,40], uei:[50,6], uang:[84,40], ueng:[66,40], uan:[92,67], uen:[72,67], u9:[96,93], ei:[12,12], eng:[56,26], ai:[14,54], an:[64,54], ang:[86,16] };
+  const seqKeys = ['u1','uo','ua','uai','uei','uang','ueng','uan','uen','u9'];
+  const dots = Object.entries(P).filter(([k])=>k!=='u0');
+  box.append(h(`<div class="act"><h4>一、聽錄音，按所讀的順序把韻母連起來，看看畫了甚麼畫兒</h4>
+    <div class="tree" id="tree"><svg viewBox="0 0 100 100" preserveAspectRatio="none" class="paths"><polygon id="tfill" points="" /><polyline id="tpath" points="6,93" /><rect id="trunk" x="42" y="93" width="16" height="7" /></svg>
+      ${dots.map(([k,[x,y]])=>`<button class="dot" data-k="${k}" style="left:${x}%;top:${y}%"><i></i><span>${({uei:'uei (ui)',uen:'uen (un)'})[k] || k.replace(/\d/,'')}</span></button>`).join('')}
+      <div class="dot start" style="left:6%;top:93%"><i></i></div><div class="startpt" style="left:9%;top:84%">開始 →</div></div>
+    <div class="check-row"><button class="btn sky small" id="nextDot">聽下一個韻母</button><span id="treeTip">按「聽下一個韻母」開始。</span></div></div>
+    <div class="act"><h4>二、聽錄音，把正確的韻母圈起來</h4>
+    <div class="circles">${W.CIRCLE.map((c,i)=>`<div class="circ" data-i="${i}"><button class="spk" aria-label="聽 ${c[0]}">${speakerSvg}</button><div class="zh">${c[0]}</div><div class="two">${c[3].map((f,fi)=>`<button class="opt" data-fi="${fi}">${f}</button>`).join('<span>/</span>')}</div></div>`).join('')}</div></div>`));
+  let step = -1; const pts = [P.u0];
+  const finOf = k => k.replace(/\d/,'');
+  const playStep = () => { if (step < 0) step = 0; if (step < seqKeys.length){ const f = finOf(seqKeys[step]); say('fin_' + f, f); $('#treeTip').textContent = `第 ${step+1} 個：聽一聽，點正確的韻母。`; } };
+  $('#nextDot').onclick = playStep;
+  box.querySelectorAll('.dot').forEach(b => b.onclick = () => {
+    const k = b.dataset.k;
+    if (step < 0 || step >= seqKeys.length){ say('fin_' + finOf(k), finOf(k)); return; }
+    const want = seqKeys[step];
+    if (k === want){ b.classList.add('ok'); pts.push(P[k]); $('#tpath').setAttribute('points', pts.map(p=>p.join(',')).join(' ')); step++;
+      if (step === seqKeys.length){ pts.push(P.u0); $('#tpath').setAttribute('points', pts.map(p=>p.join(',')).join(' ')); $('#tfill').setAttribute('points', pts.map(p=>p.join(',')).join(' ')); $('#tree').classList.add('done'); $('#treeTip').textContent = '是一棵聖誕樹！順序：u、uo、ua、uai、uei、uang、ueng、uan、uen、u。'; dollSay('wb_tree_done', null, 'cheer'); wbStar('tree'); }
+      else { praise(); setTimeout(playStep, 1500); } }
+    else { b.classList.add('no'); setTimeout(()=>b.classList.remove('no'),500); comfort(); setTimeout(playStep, 1700); }
+  });
+  let cdone = 0;
+  box.querySelectorAll('.circ').forEach(ce => { const c = W.CIRCLE[+ce.dataset.i]; const play = () => say('wbci_' + ce.dataset.i, c[2]);
+    ce.querySelector('.spk').onclick = play; ce.querySelector('.zh').onclick = play;
+    ce.querySelectorAll('.opt').forEach(o => o.onclick = () => { if (ce.classList.contains('done')) return;
+      if (+o.dataset.fi === c[4]){ o.classList.add('ok','circled'); ce.classList.add('done'); ce.querySelector('.zh').innerHTML = `${c[0]}<small class="py">${c[1]}</small>`; play(); cdone++; if (cdone === W.CIRCLE.length) wbStar('circle'); else praise(); }
+      else { o.classList.add('no'); setTimeout(()=>o.classList.remove('no'),500); comfort(); } }); });
+}
+
 /* ---------------- start ---------------- */
 function start(){
   const ov = h(`<div class="start" id="start"><div><div class="start-pair"><img src="img/doll-wave.webp" alt="Susu 娃娃"><img class="n" src="img/baby-clap.webp" alt="Neko 娃娃"></div><h1>小朋友，你好！</h1><p>我是 Susu，我和 Neko 一起陪你溫習普通話吧。</p><button class="btn" id="go" style="font-size:1.35rem;padding:16px 36px">點我開始</button><p class="hint" style="margin-top:14px">請打開聲音</p></div></div>`);
   document.body.append(ov);
-  $('#go').onclick = () => { $('#start').remove(); dollSay('hello', null, 'wave'); };
+  $('#go').onclick = () => { $('#start').remove(); dollSay('hello', null, 'wave').then(() => nekoSay('hello')); };
 }
 render();
 start();
