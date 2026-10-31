@@ -23,13 +23,17 @@ const DOLL_TC = {
   wrong1:'沒關係哦，再聽一次吧。', wrong2:'差一點點啦，再試一試！',
   finish:'哇，恭喜你完成了！Neko 也為你拍手，你得到了一顆星星！',
   rest:'學累了嗎？Neko 陪你休息一下，喝口水，再回來玩吧。',
-  exam:'小朋友，加油哦！你一定可以的！'
+  exam:'小朋友，加油哦！你一定可以的！',
+  g_mole:'小地鼠出來啦！聽一聽，快打中正確的拼音吧！', g_cake:'月餅掉下來啦！聽一聽是哪個韻母，快接住它！',
+  g_fill:'拼音缺了一塊，聽一聽，幫它補回來吧！', g_code:'聽一聽這個詞語，兩個字分別是第幾聲呀？',
+  sticker_new:'哇，你得到一張新貼紙！快貼到貼紙簿裏吧！', sticker_pack:'你有貼紙包可以打開哦！', book:'這是你的貼紙簿，集齊所有貼紙吧！'
 };
 
 /* ---------------- state ---------------- */
 let memStore = {};
-const store = { get(){ return memStore; }, set(v){ memStore = v; } };
-let S = Object.assign({ stars:0, done:{}, plays:0 }, store.get());
+const KEY = 'susu-neko-ptH-v1';
+const store = { get(){ try { return JSON.parse(window['local'+'Storage'].getItem(KEY)) || memStore; } catch(e){ return memStore; } }, set(v){ memStore = v; try { window['local'+'Storage'].setItem(KEY, JSON.stringify(v)); } catch(e){} } };
+let S = Object.assign({ stars:0, done:{}, plays:0, stickers:[], board:[], boardBg:'park' }, store.get());
 const save = () => { store.set(S); $('#starCount').textContent = S.stars; };
 save();
 let slow = false;
@@ -141,6 +145,7 @@ function render(){
   document.querySelectorAll('.topnav button').forEach(b => b.classList.toggle('on', b.dataset.go === (r||'home') || (r==='game' && b.dataset.go==='games') || (r==='lesson' && b.dataset.go==='learn')));
   document.body.classList.remove('home','in-game');
   (routes[r] || routes.home)(arg);
+  updBadge();
   window.scrollTo({ top:0, behavior:'instant' in window ? 'instant' : 'auto' });
 }
 window.addEventListener('hashchange', render);
@@ -154,6 +159,10 @@ const GAMES = [
   { id:'yw',      name:'y w 魔法變身', desc:'i 行、u 行韻母自成音節要怎樣寫？', ic:'y w', c:'var(--lav-d)', cl:'var(--lav-l)' },
   { id:'memory',  name:'翻牌好朋友', desc:'翻開卡片，把漢字和拼音配成對。', ic:'字', c:'var(--sun-d)', cl:'var(--sun-l)' },
   { id:'spell',   name:'拼拼樂',     desc:'選聲母、韻母、聲調，自己拼出字音。', ic:'b+a', c:'var(--coral-d)', cl:'var(--coral-l)' },
+  { id:'mole',    name:'聽音打地鼠', desc:'小地鼠舉着拼音牌，聽清楚再打！', ic:'hǎo', c:'var(--sun-d)', cl:'var(--sun-l)', isNew:1 },
+  { id:'cake',    name:'Neko 接月餅', desc:'聽字音找韻母，ian 還是 iang？', ic:'ing', c:'var(--coral)', cl:'var(--coral-l)', isNew:1 },
+  { id:'fill',    name:'拼音補一補', desc:'拼音缺了聲母、韻母或聲調，聽完補回來。', ic:'zh?', c:'var(--mint-d)', cl:'var(--mint-l)', isNew:1 },
+  { id:'code',    name:'聲調密碼',   desc:'聽詞語，猜出兩個字的聲調密碼。', ic:'ˉ ˋ', c:'var(--lav-d)', cl:'var(--lav-l)', isNew:1 },
 ];
 function daysLeft(){ const now = new Date(); return Math.max(0, Math.ceil((EXAM - now) / 86400000)); }
 
@@ -196,11 +205,12 @@ routes.home = () => {
     </button>`; }).join('')}
   </div>
 
-  <div class="section-title"><h2>我的星星貼紙</h2><p>每完成一個遊戲，就得到一顆星星</p></div>
-  <div class="stickers" id="stk">
-    ${GAMES.map(g => `<div class="sticker ${S.done[g.id] ? 'got' : ''}" title="${g.name}">${starSvg}</div>`).join('')}
-    <span style="margin-left:8px;color:var(--ink-2)">共 <b style="color:var(--ink)">${S.stars}</b> 顆星星</span>
-  </div>
+  <div class="section-title"><h2>我的貼紙簿</h2><p>每顆星星可以換一個貼紙包</p></div>
+  <button class="card book-card" data-go="book">
+    <div class="book-peek">${STICKERS.slice(0,6).map(st => S.stickers.includes(st[0]) ? stickerImg(st) : `<div class="stk locked ${st[3]?'scene':'pose'}"><img src="${st[2]}" alt=""></div>`).join('')}</div>
+    <div><h3>已收集 ${S.stickers.length} / ${STICKERS.length} 張貼紙</h3><p>${packs() ? `你有 <b>${packs()}</b> 個貼紙包未打開，快去看看！` : '有 Susu 和 Neko 的各種造型：中秋、月宮、太空、海邊、聖誕……'}</p></div>
+    <span class="btn sun small">打開貼紙簿</span>
+  </button>
   `));
   setDoll('wave');
 };
@@ -290,10 +300,10 @@ function renderLesson(p, n){
 routes.games = () => {
   app.innerHTML = '';
   app.append(h(`
-    <div class="panel-head"><img src="img/doll-cheer.webp" alt="" style="width:96px"><div><h2 style="font-size:clamp(1.6rem,3vw,2.2rem)">遊戲樂園</h2><p>每個遊戲 8 題，完成就得到星星貼紙。</p></div></div>
+    <div class="panel-head"><img src="img/doll-cheer.webp" alt="" style="width:96px"><div><h2 style="font-size:clamp(1.6rem,3vw,2.2rem)">遊戲樂園</h2><p>每個遊戲 8 題，完成得一顆星星，全對再多送一顆。星星可以去貼紙簿換貼紙包。</p></div></div>
     <div class="grid g3">${GAMES.map(g=>`
       <button class="card game-card" style="--c:${g.c};--cl:${g.cl}" data-go="game" data-arg="${g.id}">
-        <div class="ic">${g.ic}</div><div><h3>${g.name}</h3><p>${g.desc}</p></div>
+        <div class="ic">${g.ic}</div><div><h3>${g.name}${g.isNew ? '<span class="new-tag">新</span>' : ''}</h3><p>${g.desc}</p></div>
         ${S.done[g.id] ? `<span class="done">${starSvg}</span>` : ''}
       </button>`).join('')}</div>
     <div class="card" style="margin-top:22px;display:flex;align-items:center;gap:16px;background:var(--lav-l)">
@@ -340,12 +350,13 @@ function runGame(gid, rounds, renderRound){
   };
   const finish = () => {
     const was = S.done[gid];
-    S.done[gid] = true; S.stars += 1; S.plays += 1; save();
+    const bonus = right === rounds.length ? 1 : 0;
+    S.done[gid] = true; S.stars += 1 + bonus; S.plays += 1; save(); updBadge();
     confetti();
     $('#prog').style.width = '100%';
     say('doll_finish', D.DOLL.finish).then(() => document.querySelector('#modal:not([hidden])') && nekoSay('finish'));
-    modal({ img:'clap', title:'完成了！', text:`你答對了 ${right} / ${rounds.length} 題，得到一顆星星！${S.plays % 3 === 0 ? '玩了幾個遊戲，休息一下眼睛吧。' : ''}`,
-      actions:[['再玩一次','mint',()=>routes.game(gid)],['返回遊戲樂園','',()=>go('games')]] });
+    modal({ img:'clap', title: bonus ? '全對了，太厲害了！' : '完成了！', text:`你答對了 ${right} / ${rounds.length} 題，得到${bonus ? '兩顆星星（全對多送一顆）' : '一顆星星'}，可以打開${bonus ? '兩' : '一'}個貼紙包！${S.plays % 3 === 0 ? '玩了幾個遊戲，休息一下眼睛吧。' : ''}`,
+      actions:[['開貼紙包','sun',()=>go('book')],['再玩一次','mint',()=>routes.game(gid)],['返回遊戲樂園','',()=>go('games')]] });
     setDoll('cheer');
   };
   dollSay('g_' + gid, null, 'think').then(() => {});
@@ -450,8 +461,8 @@ const GAME_IMPL = {
         if (c1.i === c2.i && c1.kind !== c2.kind){
           setTimeout(() => { e1.classList.add('match'); e2.classList.add('match'); open = []; lock = false; matched++;
             $('#prog').style.width = (matched/6*100)+'%'; $('#score').textContent = `${matched} / 6`;
-            if (matched === 6){ S.done.memory = true; S.stars++; S.plays++; save(); confetti(); say('doll_finish', D.DOLL.finish); setDoll('cheer');
-              modal({ img:'clap', title:'全部配對成功！', text:`你用了 ${tries} 次就找齊 6 對好朋友，得到一顆星星！`, actions:[['再玩一次','mint',()=>routes.game('memory')],['返回遊戲樂園','',()=>go('games')]] });
+            if (matched === 6){ S.done.memory = true; S.stars++; S.plays++; save(); updBadge(); confetti(); say('doll_finish', D.DOLL.finish); setDoll('cheer');
+              modal({ img:'clap', title:'全部配對成功！', text:`你用了 ${tries} 次就找齊 6 對好朋友，得到一顆星星，可以打開一個貼紙包！`, actions:[['開貼紙包','sun',()=>go('book')],['再玩一次','mint',()=>routes.game('memory')],['返回遊戲樂園','',()=>go('games')]] });
             } else { praise(); }
           }, 700);
         } else {
@@ -505,6 +516,7 @@ routes.game = id => { (GAME_IMPL[id] || GAME_IMPL.listen)(); };
 /* ---------------- WORKBOOK (習作溫習) ---------------- */
 const W = window.WB_DATA;
 Object.assign(DOLL_TC, W.SUSU_TC); Object.assign(D.DOLL, W.SUSU);
+Object.assign(W.NEKO, { sticker:'Neko也好喜欢这张贴纸呀！' }); Object.assign(W.NEKO_TC, { sticker:'Neko 也好喜歡這張貼紙呀！' }); Object.assign(D.DOLL, { g_mole:'小地鼠出来啦！', g_cake:'月饼掉下来啦！', g_fill:'拼音缺了一块！', g_code:'听一听这个词语！', sticker_new:'你得到一张新贴纸！', sticker_pack:'你有贴纸包可以打开哦！', book:'这是你的贴纸簿！' });
 function nekoSay(key){
   const b = $('#bubble'), buddy = $('#buddy');
   b.textContent = W.NEKO_TC[key] || ''; b.classList.add('show'); setDoll('clap'); buddy.classList.add('talk','neko');
@@ -514,7 +526,7 @@ function nekoSay(key){
 const cubeSvg = '<svg viewBox="0 0 60 60" class="cube" aria-hidden="true"><path d="M30 4 56 17 30 30 4 17z" fill="#ffd43b" stroke="#333" stroke-width="2"/><path d="M4 17 30 30v26L4 43z" fill="#ff6b5e" stroke="#333" stroke-width="2"/><path d="M56 17 30 30v26l26-13z" fill="#4ea8ff" stroke="#333" stroke-width="2"/><path d="M12.7 12.7 39 25.7M21.3 8.4 47.4 21.3M12.7 21.3 38.7 8.4M21.3 25.7 47.3 12.7M4 25.7l26 13M4 34.3l26 13M12.7 21.3v26M21.3 25.7v26M56 25.7l-26 13M56 34.3l-26 13M47.3 21.3v26M38.7 25.7v26" stroke="#333" stroke-width="1.6" fill="none"/></svg>';
 const picEm = e => e === 'CUBE' ? cubeSvg : e;
 const WB_DONE = {};
-function wbStar(key){ if (WB_DONE[key]) return; WB_DONE[key] = true; S.stars++; save(); confetti(); nekoSay('cheer'); }
+function wbStar(key){ if (WB_DONE[key]) return; WB_DONE[key] = true; S.stars++; save(); updBadge(); confetti(); nekoSay('cheer'); }
 
 routes.wb = (tab='1') => {
   app.innerHTML = '';
@@ -645,6 +657,199 @@ function practice3(box){
       if (+o.dataset.fi === c[4]){ o.classList.add('ok','circled'); ce.classList.add('done'); ce.querySelector('.zh').innerHTML = `${c[0]}<small class="py">${c[1]}</small>`; play(); cdone++; if (cdone === W.CIRCLE.length) wbStar('circle'); else praise(); }
       else { o.classList.add('no'); setTimeout(()=>o.classList.remove('no'),500); comfort(); } }); });
 }
+
+/* ---------------- STICKER BOOK (貼紙簿) ---------------- */
+const STICKERS = [
+  ['p_wave','Susu 打招呼','img/doll-wave.webp',0],['p_clap','Neko 拍拍手','img/baby-clap.webp',0],['p_teach','Susu 小老師','img/doll-teach.webp',0],
+  ['p_cheer','Susu 好開心','img/doll-cheer.webp',0],['p_think','Susu 想一想','img/doll-think.webp',0],['p_sleep','Neko 睡覺覺','img/baby-sleep.webp',0],
+  ['st_moon','中秋提燈籠','img/stk/st_moon.webp',1],['st_palace','飛上月宮','img/stk/st_palace.webp',1],['st_space','太空飛船','img/stk/st_space.webp',1],
+  ['st_beach','海邊拾貝殼','img/stk/st_beach.webp',1],['st_art','視藝課畫花兒','img/stk/st_art.webp',1],['st_park','公園野餐','img/stk/st_park.webp',1],
+  ['st_sport','運動會','img/stk/st_sport.webp',1],['st_birthday','生日派對','img/stk/st_birthday.webp',1],['st_snow','下雪堆雪人','img/stk/st_snow.webp',1],
+  ['st_fairy','花園小仙子','img/stk/st_fairy.webp',2],['st_xmas','聖誕樹','img/stk/st_xmas.webp',2],['st_teacher','普通話小博士','img/stk/st_teacher.webp',2]
+];
+const RAR = ['普通','漂亮','閃亮'];
+const stkById = id => STICKERS.find(s => s[0] === id);
+const packs = () => Math.max(0, Math.min(S.stars - S.stickers.length, STICKERS.length - S.stickers.length));
+function updBadge(){ const b = $('#bookBadge'); if (!b) return; const n = packs(); b.textContent = n; b.hidden = !n; }
+function earn(n=1, why=''){ S.stars += n; save(); updBadge(); }
+function stickerImg(s, cls=''){ return `<div class="stk ${s[3]?'scene':'pose'} r${s[3]} ${cls}"><img src="${s[2]}" alt="${s[1]}" loading="lazy" draggable="false"></div>`; }
+
+const BOARDS = [['park','公園','linear-gradient(#bfe6ff 0 55%,#9be08f 55%)'],['night','月夜','radial-gradient(circle at 78% 22%,#fff6c9 0 8%,transparent 9%),linear-gradient(#26305c,#5a4c8f)'],['sea','海邊','linear-gradient(#bfe6ff 0 45%,#5ec4f0 45% 70%,#ffe2a8 70%)'],['class','課室','linear-gradient(#fff3e0 0 70%,#d9a877 70%)']];
+routes.book = (tab='album') => {
+  app.innerHTML = '';
+  const got = S.stickers.length, n = packs();
+  app.append(h(`<div class="panel-head"><img src="img/baby-clap.webp" alt="" style="width:90px"><div><h2 style="font-size:clamp(1.6rem,3vw,2.2rem)">我的貼紙簿</h2><p>每得到一顆星星，就可以打開一個貼紙包。全對還會多送一顆星星。</p></div></div>
+  <section class="pack-zone">
+    <button class="pack ${n?'has':''}" id="openPack" ${n?'':'disabled'}><span class="foil"></span><span class="pk-t">貼紙包</span><span class="pk-n">${n}</span></button>
+    <div class="pack-info"><h3>${got >= STICKERS.length ? '全部貼紙集齊了，你真厲害！' : n ? `你有 ${n} 個貼紙包可以打開` : '去玩遊戲、做習作，贏星星換貼紙包吧'}</h3>
+      <div class="meter"><i style="width:${got/STICKERS.length*100}%"></i></div><p>已收集 <b>${got}</b> / ${STICKERS.length} 張</p>
+      ${n ? '' : '<div class="cta"><button class="btn mint small" data-go="games">去遊戲樂園</button><button class="btn sky small" data-go="wb">去習作溫習</button></div>'}</div>
+  </section>
+  <div class="tabs"><button class="tab ${tab==='album'?'on':''}" data-go="book" data-arg="album">收集冊</button><button class="tab ${tab==='board'?'on':''}" data-go="book" data-arg="board">貼紙畫板</button></div>
+  <div id="bookBody"></div>`));
+  const body = $('#bookBody');
+  if (tab === 'board') renderBoard(body); else {
+    body.append(h(`<div class="album">${STICKERS.map((s,i)=>{ const has = S.stickers.includes(s[0]); return `<div class="slot ${has?'got':''}"><span class="no">${i+1}</span>${has ? stickerImg(s) : `<div class="stk locked ${s[3]?'scene':'pose'}"><img src="${s[2]}" alt="" loading="lazy"></div>`}<p>${has ? s[1] : '？？？'}</p>${has && s[3]?`<span class="rar r${s[3]}">${RAR[s[3]]}</span>`:''}</div>`; }).join('')}</div>`));
+  }
+  $('#openPack').onclick = openPack;
+  dollSay(n ? 'sticker_pack' : 'book', null, 'cheer');
+};
+function openPack(){
+  if (!packs()) return;
+  const left = STICKERS.filter(s => !S.stickers.includes(s[0]));
+  // rarer stickers come a bit later so there is always something to look forward to
+  const w = left.map(s => s[3]===2 ? (S.stickers.length > 8 ? 2 : .4) : s[3]===1 ? 2 : 1.4);
+  let r = Math.random() * w.reduce((a,b)=>a+b,0), s = left[0];
+  for (let i=0;i<left.length;i++){ r -= w[i]; if (r <= 0){ s = left[i]; break; } }
+  S.stickers.push(s[0]); save(); updBadge();
+  const ov = h(`<div class="reveal" id="reveal"><div class="rv-card"><div class="rv-inner"><div class="rv-back"><span>?</span></div><div class="rv-front">${stickerImg(s)}<h3>${s[1]}</h3>${s[3]?`<span class="rar r${s[3]}">${RAR[s[3]]}</span>`:''}</div></div></div>
+    <div class="rv-actions"><button class="btn mint" id="rvOk">貼進貼紙簿</button>${packs()?`<button class="btn sun" id="rvMore">再開一包（${packs()}）</button>`:''}</div></div>`);
+  document.body.append(ov);
+  setTimeout(() => { $('#reveal .rv-card').classList.add('flip'); confetti(); say('doll_sticker_new', '').then(() => nekoSay('sticker')); }, 500);
+  $('#rvOk').onclick = () => { $('#reveal').remove(); routes.book('album'); };
+  const m = $('#rvMore'); if (m) m.onclick = () => { $('#reveal').remove(); openPack(); };
+}
+function renderBoard(body){
+  const own = STICKERS.filter(s => S.stickers.includes(s[0]));
+  const bg = BOARDS.find(b => b[0] === S.boardBg) || BOARDS[0];
+  body.append(h(`<p class="hint" style="margin:6px 0 12px">點一下或拖動下面的貼紙，把它貼到畫板上，自己砌一幅圖畫。點一下畫板上的貼紙可以轉一轉，拖出畫板就會拿走。</p>
+    <div class="bg-pick">${BOARDS.map(b=>`<button class="chip ${b===bg?'on':''}" data-bg="${b[0]}">${b[1]}</button>`).join('')}<button class="chip" id="clearBoard">清空畫板</button></div>
+    <div class="board" id="board" style="background:${bg[2]}"></div>
+    <div class="tray">${own.length ? own.map(s=>`<button class="tray-i" data-id="${s[0]}">${stickerImg(s)}</button>`).join('') : '<p class="hint">還未有貼紙，先去打開貼紙包吧。</p>'}</div>`));
+  const board = $('#board');
+  const draw = () => { board.innerHTML = ''; S.board.forEach((p, k) => { const s = stkById(p.id); if (!s) return;
+      const el = h(`<div class="placed" data-k="${k}" style="left:${p.x}%;top:${p.y}%;--rot:${p.r}deg">${stickerImg(s)}</div>`).firstElementChild; board.append(el); dragPlaced(el, k); }); };
+  const dragPlaced = (el, k) => {
+    let sx, sy, moved = false;
+    el.onpointerdown = e => { e.preventDefault(); el.setPointerCapture(e.pointerId); sx = e.clientX; sy = e.clientY; moved = false; el.classList.add('lift'); };
+    el.onpointermove = e => { if (!el.hasPointerCapture(e.pointerId)) return; if (Math.abs(e.clientX-sx)+Math.abs(e.clientY-sy) > 6) moved = true; const b = board.getBoundingClientRect(); el.style.left = ((e.clientX-b.left)/b.width*100)+'%'; el.style.top = ((e.clientY-b.top)/b.height*100)+'%'; };
+    el.onpointerup = e => { el.classList.remove('lift'); const b = board.getBoundingClientRect(); const x = (e.clientX-b.left)/b.width*100, y = (e.clientY-b.top)/b.height*100;
+      if (!moved){ S.board[k].r = (S.board[k].r + 20) % 360; }
+      else if (x < -5 || x > 105 || y < -5 || y > 105){ S.board.splice(k,1); }
+      else { S.board[k].x = Math.max(0,Math.min(100,x)); S.board[k].y = Math.max(0,Math.min(100,y)); }
+      save(); draw(); };
+  };
+  body.querySelectorAll('.tray-i').forEach(t => t.onpointerdown = e => {
+    e.preventDefault(); const s = stkById(t.dataset.id);
+    const ghost = h(`<div class="placed ghost" style="--rot:0deg">${stickerImg(s)}</div>`).firstElementChild; document.body.append(ghost);
+    const mv = ev => { ghost.style.left = ev.clientX + 'px'; ghost.style.top = ev.clientY + 'px'; }; mv(e);
+    const sx = e.clientX, sy = e.clientY;
+    const up = ev => { window.removeEventListener('pointermove', mv); window.removeEventListener('pointerup', up); ghost.remove();
+      const b = board.getBoundingClientRect(); let x = (ev.clientX-b.left)/b.width*100, y = (ev.clientY-b.top)/b.height*100;
+      if (Math.abs(ev.clientX-sx) + Math.abs(ev.clientY-sy) < 8){ x = 15 + Math.random()*70; y = 20 + Math.random()*60; }
+      if (x >= 0 && x <= 100 && y >= 0 && y <= 100){ S.board.push({ id:s[0], x, y, r:Math.round(Math.random()*30-15) }); save(); draw(); say(s[3] ? 'doll_right2' : 'doll_right3', ''); } };
+    window.addEventListener('pointermove', mv); window.addEventListener('pointerup', up);
+  });
+  body.querySelectorAll('[data-bg]').forEach(b => b.onclick = () => { S.boardBg = b.dataset.bg; save(); routes.book('board'); });
+  $('#clearBoard').onclick = () => { S.board = []; save(); draw(); };
+  draw();
+}
+
+/* ---------------- NEW GAMES ---------------- */
+const PY_RE = /(zh|ch|sh|[bpmfdtnlgkhjqxrzcsyw])?(iang|iong|uang|ueng|ang|eng|ing|ong|ian|iao|uai|uan|üan|iu|ui|un|ün|ai|ei|ao|ou|an|en|in|ia|ie|ua|uo|üe|ue|er|a|o|e|i|u|ü)(r)?/g;
+function parsePy(py){
+  const toned = py.toLowerCase().replace(/[^a-zāáǎàōóǒòēéěèīíǐìūúǔùǖǘǚǜü]/g, '');
+  const plain = [...toned].map(c => PLAIN[c] ? PLAIN[c][0] : c).join('');
+  const out = []; let m, pos = 0; PY_RE.lastIndex = 0;
+  while ((m = PY_RE.exec(plain))){ if (m.index !== pos) return null; pos = m.index + m[0].length;
+    const span = [...toned].slice(m.index, pos); const tc = span.find(c => PLAIN[c]); out.push({ ini:m[1]||'', fin:m[2] + (m[3]||''), base:m[2], er:m[3]||'', tone: tc ? PLAIN[tc][1] : 0 }); }
+  return pos === plain.length ? out : null;
+}
+const sylStr = s => s.ini + addTone(s.base, s.tone) + s.er;
+const FIN_CONF = { an:['ang','en','ian'], ang:['an','eng','iang'], en:['eng','in','an'], eng:['en','ing','ong'], in:['ing','en','ian'], ing:['in','eng','iong'], ian:['iang','an','in'], iang:['ian','ang','iong'], uan:['uang','an','uen'], uang:['uan','ang','ueng'], un:['ong','uan','en'], ong:['eng','iong','un'], iong:['ong','iang','ing'], ia:['ie','a','ua'], ie:['ia','ei','üe'], ua:['uo','a','ia'], uo:['ua','o','ou'], uai:['ai','ui','ua'], ui:['ei','uai','iu'], iu:['ou','ui','iao'], iao:['ao','iu','ia'], ai:['ei','ao','uai'], ei:['ai','ui','ie'], ao:['ou','iao','ai'], ou:['ao','iu','uo'], a:['o','e','ia'], o:['uo','ou','e'], e:['ei','o','er'], i:['ü','ie','ei'], u:['ü','uo','ou'], ü:['u','i','üe'], ue:['ie','üe','ei'], üe:['ie','ue','ei'], er:['e','ai','a'], ün:['un','in','ing'], üan:['uan','ian','an'] };
+const INI_CONF = { zh:['z','ch','j'], ch:['c','zh','q'], sh:['s','x','zh'], z:['zh','c','s'], c:['ch','z','s'], s:['sh','x','c'], n:['l','m','r'], l:['n','r','d'], b:['p','d','m'], p:['b','f','t'], d:['t','b','n'], t:['d','k','p'], g:['k','h','d'], k:['g','h','t'], h:['f','k','x'], f:['h','b','p'], j:['q','x','zh'], q:['j','x','ch'], x:['sh','q','s'], r:['l','sh','y'], m:['n','b','f'] };
+function pyOpts(py, pool, n=4){
+  const opts = new Set([py]); let tries = 0;
+  while (opts.size < n && tries++ < 30){ const v = Math.random() < .55 ? toneVariant(py) : soundVariant(py); if (v && v !== py) opts.add(v); }
+  while (opts.size < n) opts.add(pick(pool,1)[0].py);
+  return shuffle([...opts]);
+}
+const toneSvg = t => `<svg viewBox="0 0 40 40" class="tsvg" aria-hidden="true">${['<circle cx="20" cy="22" r="5"/>','<path d="M6 12H34"/>','<path d="M8 32L32 8"/>','<path d="M6 12Q20 44 34 10"/>','<path d="M8 8L32 32"/>'][t]}</svg>`;
+const TONE_NAME = ['輕聲','第一聲','第二聲','第三聲','第四聲'];
+
+Object.assign(GAME_IMPL, {
+  mole(){
+    const pool = allVocab();
+    const rounds = pick(pool, ROUNDS).map(it => ({ it, opts: pyOpts(it.py, pool, 4) }));
+    runGame('mole', rounds, (body, r, cb) => {
+      body.append(h(`<p class="q-prompt">聽一聽，打中寫着正確拼音的小地鼠</p>
+        <button class="speaker pulse" id="sp" aria-label="再聽一次">${speakerSvg}</button>
+        <div class="big-hanzi" style="font-size:clamp(2rem,5vw,3rem)">${r.it.zh}</div>
+        <div class="garden">${r.opts.map((o,k)=>`<div class="hole"><button class="mole" data-o="${o}" style="animation-delay:${(k*0.55+Math.random()*.4).toFixed(2)}s;animation-duration:${(2.6+Math.random()*.8).toFixed(2)}s"><span class="face"><i></i><i></i><b></b></span><span class="sign">${o}</span></button><div class="mound"></div></div>`).join('')}</div>`));
+      const play = () => say(r.it.id, r.it.tts);
+      $('#sp', body).onclick = play; setTimeout(play, 400);
+      body.querySelectorAll('.mole').forEach(b => b.onclick = () => { if (b.dataset.o === r.it.py){ b.classList.add('bonk'); body.querySelectorAll('.mole').forEach(x=>x.style.animationPlayState='paused'); cb.correct(); } else { b.classList.add('miss'); setTimeout(()=>b.classList.remove('miss'),450); cb.wrong(); setTimeout(play,1500); } });
+    });
+  },
+  cake(){
+    const keys = D.FINALS.map(f => f[0]).filter(k => k !== 'er');
+    const rounds = pick(keys, ROUNDS).map(k => {
+      const disp = { iou:'iu', uei:'ui', uen:'un' }[k] || k;
+      const conf = (FIN_CONF[disp] || []).map(x => ({ iu:'iou', ui:'uei', un:'uen' }[x] || x)).filter(x => keys.includes(x));
+      const o = new Set([k]); shuffle(conf).forEach(x => o.size < 4 && o.add(x)); shuffle(keys).forEach(x => o.size < 4 && o.add(x));
+      return { k, opts: shuffle([...o]) };
+    });
+    runGame('cake', rounds, (body, r, cb) => {
+      const f = D.FINALS.find(x => x[0] === r.k);
+      body.append(h(`<p class="q-prompt">聽一聽 Susu 讀的字，它的韻母是哪一個？接住那個月餅</p>
+        <button class="speaker pulse" id="sp" aria-label="再聽一次">${speakerSvg}</button>
+        <div class="cakesky">${r.opts.map((o,k)=>`<button class="fcake" data-o="${o}" style="left:${4+k*24}%;animation-delay:-${(k*1.1+Math.random()*.6).toFixed(2)}s;animation-duration:${(4.6+Math.random()*1.2).toFixed(2)}s"><span>${o}</span></button>`).join('')}<img class="catcher" src="img/baby-clap.webp" alt="Neko 在下面接月餅"></div>`));
+      const play = () => say('fin_' + r.k, f ? f[5] : r.k);
+      $('#sp', body).onclick = play; setTimeout(play, 400);
+      body.querySelectorAll('.fcake').forEach(b => b.onclick = () => { if (b.dataset.o === r.k){ b.classList.add('caught'); $('.catcher', body).classList.add('yum'); say('fin_' + r.k, ''); cb.correct(); } else { b.classList.add('miss'); setTimeout(()=>b.classList.remove('miss'),450); cb.wrong(); setTimeout(play,1500); } });
+    });
+  },
+  fill(){
+    const pool = allVocab().map(v => ({ ...v, syl: parsePy(v.py) })).filter(v => v.syl && v.syl.length && v.syl.length <= 4);
+    const rounds = pick(pool, ROUNDS).map(v => {
+      const cand = v.syl.map((s,i)=>i).filter(i => v.syl[i].tone || v.syl[i].ini);
+      const si = pick(cand.length ? cand : [0], 1)[0]; const s = v.syl[si];
+      const kinds = []; if (INI_CONF[s.ini]) kinds.push('ini'); if (FIN_CONF[s.base]) kinds.push('fin'); if (s.tone) kinds.push('tone');
+      const kind = pick(kinds.length ? kinds : ['tone'], 1)[0];
+      let ans, opts;
+      if (kind === 'ini'){ ans = s.ini; opts = shuffle([ans, ...INI_CONF[ans]]); }
+      else if (kind === 'fin'){ ans = s.base; opts = shuffle([ans, ...FIN_CONF[ans].filter(x => x !== ans)].slice(0,4)).map(x=>x); }
+      else { ans = s.tone; opts = [1,2,3,4]; }
+      return { v, si, s, kind, ans, opts };
+    });
+    runGame('fill', rounds, (body, r, cb) => {
+      const show = r.v.syl.map((s,i) => { if (i !== r.si) return `<span class="syl">${sylStr(s)}</span>`;
+        if (r.kind === 'ini') return `<span class="syl"><b class="gap">?</b>${addTone(s.base,s.tone)}${s.er}</span>`;
+        if (r.kind === 'fin') return `<span class="syl">${s.ini}<b class="gap">?</b>${s.er}</span>`;
+        return `<span class="syl">${s.ini}${s.base}${s.er}<b class="gap tone">?</b></span>`; }).join(' ');
+      const lab = { ini:'聲母', fin:'韻母', tone:'聲調' }[r.kind];
+      const optLabel = o => r.kind === 'tone' ? `${toneSvg(o)}<small>${TONE_NAME[o]}</small>` : r.kind === 'fin' ? addTone(o, r.s.tone) : o;
+      body.append(h(`<p class="q-prompt">聽一聽，拼音缺了<b style="color:var(--coral-d)">${lab}</b>，把它補回來</p>
+        <div style="display:flex;align-items:center;justify-content:center;gap:18px;flex-wrap:wrap"><button class="speaker" id="sp" aria-label="再聽一次" style="width:84px;height:84px;margin:0">${speakerSvg}</button>${r.v.em?`<div class="emoji-pic" style="margin:0">${r.v.em}</div>`:''}<div class="big-hanzi" style="font-size:clamp(2rem,5vw,3rem)">${r.v.zh}</div></div>
+        <div class="fill-py" id="fp">${show}</div>
+        <div class="opts ${r.kind==='tone'?'tone-opts':''}" style="max-width:640px;grid-template-columns:repeat(4,1fr)">${r.opts.map(o=>`<button class="opt" data-o="${o}">${optLabel(o)}</button>`).join('')}</div>`));
+      const play = () => say(r.v.id, r.v.tts);
+      $('#sp', body).onclick = play; setTimeout(play, 400);
+      body.querySelectorAll('.opt').forEach(b => b.onclick = () => { const o = r.kind === 'tone' ? +b.dataset.o : b.dataset.o;
+        if (o === r.ans){ b.classList.add('ok'); $('#fp', body).innerHTML = r.v.syl.map((s,i)=>`<span class="syl ${i===r.si?'fixed':''}">${sylStr(s)}</span>`).join(' '); play(); cb.correct(); }
+        else { b.classList.add('no'); setTimeout(()=>b.classList.remove('no'),500); cb.wrong(); setTimeout(play,1500); } });
+    });
+  },
+  code(){
+    const pool = allVocab().map(v => ({ ...v, syl: parsePy(v.py) })).filter(v => v.syl && v.syl.length === 2 && !v.syl.some(s => s.er));
+    const pat = v => v.syl.map(s => s.tone);
+    const rounds = pick(pool, ROUNDS).map(v => {
+      const p = pat(v); const key = p.join('');
+      const o = new Map([[key, p]]); let t = 0;
+      while (o.size < 4 && t++ < 60){ const q = p.slice(); const i = Math.random() < .5 ? 0 : 1; const alt = [1,2,3,4].concat(p.includes(0) ? [0] : []).filter(x => x !== q[i]); q[i] = alt[Math.floor(Math.random()*alt.length)]; o.set(q.join(''), q); }
+      return { v, key, opts: shuffle([...o.values()]) };
+    });
+    runGame('code', rounds, (body, r, cb) => {
+      body.append(h(`<p class="q-prompt">聽一聽這個詞語，兩個字分別是第幾聲？選出正確的聲調密碼</p>
+        <div style="display:flex;align-items:center;justify-content:center;gap:18px;flex-wrap:wrap"><button class="speaker" id="sp" aria-label="再聽一次" style="width:84px;height:84px;margin:0">${speakerSvg}</button>${r.v.em?`<div class="emoji-pic" style="margin:0">${r.v.em}</div>`:''}<div class="big-hanzi" style="font-size:clamp(2.2rem,6vw,3.4rem)">${r.v.zh}</div></div>
+        <div class="fill-py" id="fp">${r.v.syl.map(s=>`<span class="syl">${s.ini}${s.base}</span>`).join(' ')}</div>
+        <div class="opts code-opts" style="max-width:680px;grid-template-columns:repeat(2,1fr)">${r.opts.map(q=>`<button class="opt" data-o="${q.join('')}"><span class="pair">${q.map(t=>`<span>${toneSvg(t)}<small>${TONE_NAME[t]}</small></span>`).join('<em>+</em>')}</span></button>`).join('')}</div>`));
+      const play = () => say(r.v.id, r.v.tts);
+      $('#sp', body).onclick = play; setTimeout(play, 400);
+      body.querySelectorAll('.opt').forEach(b => b.onclick = () => { if (b.dataset.o === r.key){ b.classList.add('ok'); $('#fp', body).innerHTML = r.v.syl.map(s=>`<span class="syl fixed">${sylStr(s)}</span>`).join(' '); play(); cb.correct(); } else { b.classList.add('no'); setTimeout(()=>b.classList.remove('no'),500); cb.wrong(); setTimeout(play,1500); } });
+    });
+  }
+});
 
 /* ---------------- start ---------------- */
 function start(){
